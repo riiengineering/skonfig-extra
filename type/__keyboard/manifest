@@ -25,6 +25,20 @@ os=$(cat "$__global/explorer/os")
 keyboard_type="$(cat "$__object/parameter/type")"
 
 case "$os" in
+    adelie|debian|devuan)
+        __package console-setup
+
+        require=__package/console-setup \
+        __key_value /etc/default/keyboard:LAYOUT \
+            --file /etc/default/keyboard \
+            --delimiter '=' --strict_delimiter \
+            --value "\"${keyboard_type=}\""
+
+        # --target_runlevel is used for OpenRC on Adélie Linux
+        require=__package/console-setup \
+        __start_on_boot console-setup \
+            --target_runlevel boot
+    ;;
     centos)
         __file /etc/sysconfig/keyboard \
             --owner root --group root --mode 644 \
