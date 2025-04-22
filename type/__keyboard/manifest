@@ -24,22 +24,34 @@ keyboard_type=$(cat "${__object:?}/parameter/type")
 
 case ${os}
 in
-    (centos)
-        __file /etc/sysconfig/keyboard \
-            --owner root --group root --mode 644 \
-            --state exists
+    (centos|oraclelinux)
+        # NOTE: This is a hack to differentiate Red Hat Linux from
+        # RHEL. Red Hat Linux >= 7 does not have os-release and will
+        # thus fall back to /etc/sysconfig/i18n.
+        # shellcheck source=/dev/null
+        version_id=$(. "${__global:?}/explorer/os_release" && echo "${VERSION_ID:-0}")
+        if test "${version_id%%[!0-9]*}" -ge 7
+        then
+            __file /etc/vconsole.conf --state exists \
+                --owner 0 --group 0 --mode 0644
+        else
+            __file /etc/sysconfig/keyboard --state exists \
+                --owner 0 --group 0 --mode 0644
 
-        require="__file/etc/sysconfig/keyboard" \
-            __key_value KEYTABLE \
+            require=__file/etc/sysconfig/keyboard \
+            __key_value /etc/sysconfig/keyboard:KEYTABLE \
                 --file /etc/sysconfig/keyboard \
-                --delimiter '=' \
+                --delimiter '=' --exact_delimiter \
+                --key 'KEYTABLE' \
                 --value "\"${keyboard_type}\""
 
-        require="__file/etc/sysconfig/keyboard" \
-            __key_value LAYOUT \
+            require=__file/etc/sysconfig/keyboard \
+            __key_value /etc/sysconfig/keyboard:LAYOUT \
                 --file /etc/sysconfig/keyboard \
-                --delimiter '=' \
+                --delimiter '=' --exact_delimiter \
+                --key 'LAYOUT' \
                 --value "\"${keyboard_type}\""
+        fi
         ;;
     (crux)
         __key_value /etc/rc.conf:KEYMAP \
