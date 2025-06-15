@@ -1,7 +1,6 @@
-#!/bin/sh
+#!/bin/sh -e
 #
-# 2021 Timothée Floure (timothee.floure at posteo.net)
-# 2021 Joachim Desroches (joachim.desroches at epfl.ch)
+# 2023-2025 Dennis Camera (dennis.camera at riiengineering.ch)
 #
 # This file is part of skonfig-extra.
 #
@@ -19,16 +18,42 @@
 # along with skonfig-extra. If not, see <http://www.gnu.org/licenses/>.
 #
 
-os=$(cat "${__global:?}"/explorer/os)
+confdir=$(cat "${__object:?}/parameter/confdir")
+state_should=$(cat "${__object:?}/parameter/state")
 
-case ${os}
+__package uacme
+
+case ${state_should}
 in
-	(alpine|debian|ubuntu)
-		uacme_package=uacme
+	(present)
+		case ${confdir}
+		in
+			(/etc/ssl/uacme)
+				# default
+				__directory /etc/ssl \
+					--owner 0 --group 0 --mode 0755
+
+				require=__directory/etc/ssl
+				export require
+				;;
+		esac
+
+		__directory "${confdir:?}" \
+			--owner 0 --group 0 --mode 0755
+
+		require="__directory${confdir:?}" \
+		__directory "${confdir:?}/private" \
+			--owner 0 --group 0 --mode 0700
+		;;
+	(absent)
+		# NOTE: require __object_name to allow for clean ups (deactivating
+		#       the account) in code-remote before deleting the --confdir.
+		require=${__object_name:?} \
+		__directory "${confdir:?}" \
+			--state absent
 		;;
 	(*)
-		echo "__uacme_account is not yet implemented for os ${os}. Aborting." >&2;
-		exit 1;
+		printf 'Invalid --state: %s\n' "${state_should}" >&2
+		exit 1
+		;;
 esac
-
-__package ${uacme_package}

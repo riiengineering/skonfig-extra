@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/sh -e
 #
-# 2021 Timothée Floure (timothee.floure at posteo.net)
+# 2023-2025 Dennis Camera (dennis.camera at riiengineering.ch)
 #
 # This file is part of skonfig-extra.
 #
@@ -18,34 +18,46 @@
 # along with skonfig-extra. If not, see <http://www.gnu.org/licenses/>.
 #
 
-os=$(cat "${__global:?}"/explorer/os)
+shquot() {
+	sed -e "s/'/'\\\\''/g" -e "1s/^/'/" -e "\$s/\$/'/" <<-EOF
+	$*
+	EOF
+}
 
-case ${os}
+confdir=$(cat "${__object:?}/parameter/confdir")
+
+read -r state_is <"${__object:?}/explorer/state"
+read -r state_should <"${__object:?}/parameter/state"
+
+test "${state_should}" != "${state_is}" || exit 0
+
+case ${state_should}
 in
-	(alpine|ubuntu|debian)
-		default_confdir=/etc/ssl/uacme
+	(present)
+		if test -f "${__object:?}/parameter/mail"
+		then
+			email=$(cat "${__object:?}/parameter/mail")
+		elif test -f "${__object:?}/parameter/admin-mail"
+		then
+			# fall back to deprecated --admin-mail
+			email=$(cat "${__object:?}/parameter/admin-mail")
+		fi
+
+		printf 'uacme --confdir %s --yes new%s\n' \
+			"$(shquot "${confdir:?}")" \
+			"${email:+ $(shquot "${mail-}")}"
+		;;
+	(absent)
+		# deletion of --confdir is handled in manifest
+
+		if test -f "${__object:?}/parameter/deactivate-if-absent"
+		then
+			printf 'uacme --confdir %s deactivate\n' \
+				"$(shquot "${confdir:?}")" \
+		fi
 		;;
 	(*)
-		echo "This type currently has no implementation for ${os}. Aborting." >&2;
+		printf 'Invalid --state: %s\n' "${state_should}" >&2
 		exit 1
 		;;
 esac
-
-admin_mail=
-if [ -f "${__object:?}/parameter/admin-mail" ];
-then
-	admin_mail=$(cat "${__object:?}/parameter/admin-mail")
-fi
-
-confdir="${default_confdir:?}"
-if [ -f "${__object:?}/parameter/confdir" ];
-then
-	confdir=$(cat "${__object:?}/parameter/confdir")
-fi
-
-cat <<EOF
-if ! [ -f "${confdir}/private/key.pem" ];
-then
-	uacme -y new ${admin_mail}
-fi
-EOF
